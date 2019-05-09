@@ -15,8 +15,5 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/csv', function () {
-    Excel::import(new \App\Imports\GlosasImport, 'carga_glosas.csv', 'minio', \Maatwebsite\Excel\Excel::CSV);
-    return redirect('/')->with('success', 'Importación Exitosa!');
-});
+Route::get('/csv', 'CargaGlosa@loadGlosa');
 

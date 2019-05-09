@@ -3,26 +3,38 @@
 namespace App\Imports;
 
 use App\CargueGlosas;
+use App\Jobs\ProcessGlosaUpload;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Maatwebsite\Excel\Concerns\Importable;
-use Maatwebsite\Excel\Concerns\RegistersEventListeners;
 use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithBatchInserts;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithCustomCsvSettings;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Events\AfterImport;
 use Ramsey\Uuid\Uuid;
 
-class GlosasImport implements ToModel, WithHeadingRow, WithCustomCsvSettings, WithEvents
+class GlosasImport implements ToModel, WithHeadingRow, WithCustomCsvSettings, WithBatchInserts, WithChunkReading, ShouldQueue, WithEvents
 {
-    use Importable, RegistersEventListeners;
+    use Importable;
 
-    public static $uuid;
+    private $uuid;
     /**
      * GlosasImport constructor.
      */
     public function __construct()
     {
-        self::$uuid = Uuid::uuid4();
+        $this->uuid = Uuid::uuid4();
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterImport::class => function() {
+                ProcessGlosaUpload::dispatch($this->uuid);
+            },
+        ];
     }
 
     /**
@@ -51,7 +63,7 @@ class GlosasImport implements ToModel, WithHeadingRow, WithCustomCsvSettings, Wi
             'identificacion_paciente' => $row['identificacion_paciente'],
             'nombre_paciente' => $row['nombre_paciente'],
             'usuario_sap' => $row['usuario_sap'],
-            'uuid_carga' => self::$uuid,
+            'uuid_carga' => $this->uuid,
         ]);
     }
 
@@ -63,8 +75,13 @@ class GlosasImport implements ToModel, WithHeadingRow, WithCustomCsvSettings, Wi
         ];
     }
 
-    public static function afterImport(AfterImport $event)
+    public function batchSize(): int
     {
-        (\DB::select('SELECT iniciar_analisis(:uuid)',['uuid' => self::$uuid]));
+        return 50;
+    }
+
+    public function chunkSize(): int
+    {
+        return 50;
     }
 }
